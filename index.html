@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BMI 計算器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+/*
+VOICE: calm, clinical, friendly — a health tool, few hues, plenty of air.
+IDEA: the printed BMI chart in a clinic — one ruler band with coloured zones and a pointer.
+PICTURE: the live result, huge, sitting on the zone ruler with a moving marker.
+COLOUR and TYPE: white ground, deep ink; zone colours (blue / teal / amber / red) only on the ruler and result; Noto Sans TC.
+LAYOUT: modest title, inputs left, result + ruler right; stacks to title, result, inputs under 600px.
+*/
+:root{color-scheme:light dark;
+  --bg:light-dark(#ffffff,#0f1419);--ink:light-dark(#121820,#eef2f6);--sub:light-dark(#5a6573,#9aa6b4);
+  --line:light-dark(#dfe4ea,#2a333d);--field:light-dark(#f5f7fa,#18202a);--panel:light-dark(#f2f5f8,#151c24);
+  --c1:#3d8bfd;--c2:#17a589;--c3:#f0a020;--c4:#e5484d;--acc:var(--c2)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Noto Sans TC",system-ui,sans-serif;overflow-x:clip}
+.band{padding:clamp(28px,4vw,64px) max(5vw,16px)}
+.wrap{max-width:1040px;margin:0 auto}
+h1{font-size:clamp(32px,5vw,44px);line-height:1.05;margin:0 0 8px;font-weight:900;text-wrap:balance}
+.lead{color:var(--sub);margin:0 0 32px}
+.grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(20px,3vw,40px);align-items:stretch}
+form{display:flex;flex-direction:column;gap:20px;padding:28px;border:1px solid var(--line);border-radius:18px}
+label{display:block;font-weight:700;margin-bottom:8px}
+.inp{display:flex;align-items:center;background:var(--field);border:2px solid var(--line);border-radius:12px;transition:border-color .15s}
+.inp:focus-within{border-color:var(--acc)}
+.inp input{flex:1;border:0;background:transparent;color:var(--ink);font:500 22px/1 inherit;font-family:inherit;padding:14px 16px;min-height:56px;outline:none;width:100%}
+.inp span{padding-right:16px;color:var(--sub);white-space:nowrap}
+.inp.bad{border-color:var(--c4)}
+.err{color:var(--c4);font-size:14px;min-height:1.4em;margin:6px 0 0}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+button{font:700 16px/1 inherit;font-family:inherit;min-height:48px;padding:0 22px;border-radius:12px;cursor:pointer;border:2px solid transparent}
+button:focus-visible{outline:3px solid var(--c1);outline-offset:2px}
+.go{background:var(--ink);color:var(--bg);flex:1}
+.reset{background:transparent;color:var(--ink);border-color:var(--line)}
+.formula{font-size:14px;color:var(--sub);margin:0}
+.res{background:var(--panel);border-radius:18px;padding:clamp(24px,3vw,36px);display:flex;flex-direction:column;justify-content:space-between;gap:24px}
+.big{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.num{font-size:clamp(72px,12vw,128px);font-weight:900;line-height:.95;letter-spacing:-.02em;color:var(--acc);font-variant-numeric:tabular-nums;transition:color .3s}
+.cat{font-size:28px;font-weight:900;color:var(--acc);transition:color .3s}
+.note{margin:6px 0 0;color:var(--sub)}
+.empty .num,.empty .cat{color:var(--line)}
+.ruler{position:relative;padding-top:34px}
+.bar{display:flex;height:22px;border-radius:11px;overflow:hidden}
+.bar i{display:block;height:100%}
+.ticks{position:relative;height:22px;margin-top:6px;font-size:13px;color:var(--sub);font-variant-numeric:tabular-nums}
+.ticks b{position:absolute;transform:translateX(-50%);font-weight:500}
+.zones{display:flex;margin-top:4px;font-size:13px;font-weight:700}
+.zones span{text-align:center}
+.mk{position:absolute;top:0;left:0;transform:translateX(-50%);transition:left .5s cubic-bezier(.3,1.4,.5,1)}
+.mk div{background:var(--ink);color:var(--bg);font:700 13px/1 inherit;font-family:inherit;padding:6px 8px;border-radius:7px;white-space:nowrap}
+.mk div::after{content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);border:6px solid transparent;border-bottom:0;border-top-color:var(--ink)}
+.empty .mk{opacity:0}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+td:nth-child(2){white-space:nowrap;font-variant-numeric:tabular-nums}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:middle}
+h2{font-size:22px;margin:0 0 4px}
+.src{font-size:13px;color:var(--sub);margin-top:12px}
+@media(max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}.res{order:-1}}
+@media(prefers-reduced-motion:reduce){.mk,.num,.cat{transition:none}}
+</style>
+</head>
+<body>
+<main class="band wrap">
+  <h1>BMI 計算器</h1>
+  <p class="lead">輸入體重和身高，馬上算出你的身體質量指數。</p>
+
+  <div class="grid">
+    <form id="f" novalidate>
+      <div>
+        <label for="w">體重</label>
+        <div class="inp" id="wbox"><input id="w" type="number" inputmode="decimal" step="0.1" min="0" placeholder="例如 65"><span>公斤</span></div>
+        <p class="err" id="werr"></p>
+      </div>
+      <div>
+        <label for="h">身高</label>
+        <div class="inp" id="hbox"><input id="h" type="number" inputmode="decimal" step="0.1" min="0" placeholder="例如 170"><span>公分</span></div>
+        <p class="err" id="herr"></p>
+      </div>
+      <div class="btns">
+        <button class="go" type="submit">計算 BMI</button>
+        <button class="reset" type="button" id="clr">清除</button>
+      </div>
+      <p class="formula">公式：BMI ＝ 體重(kg) ÷ 身高(m)²</p>
+    </form>
+
+    <section class="res empty" id="res" aria-live="polite">
+      <div>
+        <div class="big"><span class="num" id="num">--.-</span><span class="cat" id="cat">尚未計算</span></div>
+        <p class="note" id="note">輸入體重和身高後，結果會顯示在這裡。</p>
+      </div>
+      <div class="ruler">
+        <div class="mk" id="mk"><div id="mkt">0</div></div>
+        <div class="bar" id="bar"></div>
+        <div class="ticks" id="ticks"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<section class="band wrap" style="padding-top:0">
+  <h2>成人 BMI 分級</h2>
+  <table>
+    <thead><tr><th>分級</th><th>BMI 範圍</th></tr></thead>
+    <tbody id="tb"></tbody>
+  </table>
+  <p class="src">分級依台灣衛生福利部國民健康署的成人標準。BMI 只是初步參考，不適用於孕婦、兒童與青少年，也無法區分肌肉和脂肪；健康問題請諮詢醫師。</p>
+</section>
+
+<script>
+{
+const MIN=14,MAX=35;
+const Z=[
+  {n:'過輕',lo:MIN,hi:18.5,c:'var(--c1)',r:'< 18.5',t:'體重偏低，可以留意營養是否足夠。'},
+  {n:'正常',lo:18.5,hi:24,c:'var(--c2)',r:'18.5 – 24',t:'在健康範圍內，繼續保持。'},
+  {n:'過重',lo:24,hi:27,c:'var(--c3)',r:'24 – 27',t:'略高於健康範圍，可以調整飲食和運動。'},
+  {n:'肥胖',lo:27,hi:MAX,c:'var(--c4)',r:'≥ 27',t:'建議與醫師或營養師討論體重管理。'}
+];
+const $=id=>document.getElementById(id);
+const pct=v=>(Math.min(Math.max(v,MIN),MAX)-MIN)/(MAX-MIN)*100;
+
+$('bar').innerHTML=Z.map(z=>`<i style="width:${pct(z.hi)-pct(z.lo)}%;background:${z.c}"></i>`).join('');
+$('ticks').innerHTML=[18.5,24,27].map(v=>`<b style="left:${pct(v)}%">${v}</b>`).join('');
+$('tb').innerHTML=Z.map(z=>`<tr><td><span class="dot" style="background:${z.c}"></span>${z.n}</td><td>${z.r}</td></tr>`).join('');
+
+function zone(b){return b<18.5?Z[0]:b<24?Z[1]:b<27?Z[2]:Z[3]}
+
+function check(v,box,err,name,lo,hi,unit){
+  const s=$(v).value.trim();let msg='';
+  if(s==='')msg='請輸入'+name;
+  else{const n=parseFloat(s);
+    if(!isFinite(n)||n<=0)msg=name+'必須大於 0';
+    else if(n<lo||n>hi)msg=name+'請輸入 '+lo+'–'+hi+' '+unit+' 之間的數字';
+  }
+  $(box).classList.toggle('bad',!!msg);$(err).textContent=msg;
+  return msg?null:parseFloat(s);
+}
+
+function clearRes(){
+  $('res').classList.add('empty');$('num').textContent='--.-';$('cat').textContent='尚未計算';
+  $('note').textContent='輸入體重和身高後，結果會顯示在這裡。';
+  document.documentElement.style.setProperty('--acc','var(--c2)');
+}
+
+function calc(showErr){
+  const w=check('w','wbox','werr','體重',1,500,'公斤');
+  const h=check('h','hbox','herr','身高',30,272,'公分');
+  if(!showErr){for(const [v,b,e] of [['w','wbox','werr'],['h','hbox','herr']])if($(v).value.trim()===''){$(b).classList.remove('bad');$(e).textContent=''}}
+  if(w===null||h===null){clearRes();return}
+  const m=h/100,b=w/(m*m),z=zone(b),s=b.toFixed(1);
+  document.documentElement.style.setProperty('--acc',z.c);
+  $('res').classList.remove('empty');
+  $('num').textContent=s;$('cat').textContent=z.n;$('note').textContent=z.t;
+  $('mk').style.left=pct(b)+'%';$('mkt').textContent=s;
+  try{localStorage.setItem('bmi',JSON.stringify({w:$('w').value,h:$('h').value}))}catch(e){}
+}
+
+$('f').addEventListener('submit',e=>{e.preventDefault();calc(true)});
+$('w').addEventListener('input',()=>calc(false));
+$('h').addEventListener('input',()=>calc(false));
+$('clr').addEventListener('click',()=>{
+  $('w').value='';$('h').value='';
+  for(const id of ['wbox','hbox'])$(id).classList.remove('bad');
+  $('werr').textContent='';$('herr').textContent='';clearRes();
+  try{localStorage.removeItem('bmi')}catch(e){}
+  $('w').focus();
+});
+
+try{const d=JSON.parse(localStorage.getItem('bmi')||'null');if(d){$('w').value=d.w||'';$('h').value=d.h||'';calc(false)}}catch(e){}
+}
+</script>
+</body>
+</html>
